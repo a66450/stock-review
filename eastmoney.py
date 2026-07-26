@@ -86,6 +86,22 @@ def fetch_limit_up_stocks(trade_date: str) -> list[dict]:
             if "ST" in name.upper():
                 continue
 
+            # 排除一字板: open≈high≈low≈trade (价格全天未动)
+            open_p = float(item.get("open", 0) or 0)
+            high_p = float(item.get("high", 0) or 0)
+            low_p = float(item.get("low", 0) or 0)
+            trade_p = float(item.get("trade", 0) or 0)
+            if open_p > 0 and high_p > 0:
+                # 全天振幅<0.5% 且涨停 = 一字板或T字板
+                amplitude = (high_p - low_p) / open_p * 100 if open_p > 0 else 0
+                if amplitude < 0.5:
+                    continue
+
+            # 温和放量: 换手率在0.5%~20%之间
+            turnover = float(item.get("turnoverratio", 0) or 0)
+            if turnover < 0.5 or turnover > 20:
+                continue
+
             # 流通市值: nmc字段, 单位万元 → 亿
             nmc = float(item.get("nmc", 0) or 0)
             float_mv = round(nmc / 1e4, 2) if nmc > 0 else 0
@@ -99,7 +115,7 @@ def fetch_limit_up_stocks(trade_date: str) -> list[dict]:
                 "close_price": float(item.get("trade", 0) or 0),
                 "limit_amount": 0,  # 新浪rank无封单额
                 "float_market_val": round(float_mv, 2),
-                "turnover_rate": float(item.get("turnoverratio", 0) or 0),
+                "turnover_rate": turnover,
                 "change_pct": change,
             }
             result.append(stock)
@@ -164,6 +180,59 @@ def fetch_stock_sectors(stock_codes: list[str],
 # ═══════════════════════════════════════════════════════════════
 # 3. 竞价/实时行情 — 新浪 real-time API (备选: push2his)
 # ═══════════════════════════════════════════════════════════════
+
+KLINE_URL = "http://push2his.eastmoney.com/api/qt/stock/kline/get"
+
+
+def _get_secid(code: str) -> str:
+    """6位代码 → secid: 1.600001(sh) 或 0.000001(sz)"""
+    if code.startswith(('6', '9')):
+        return f"1.{code}"
+    return f"0.{code}"
+
+
+def get_ma20(code: str) -> tuple[float, float]:
+    """
+    获取20日均线价格和5日均量。
+    返回: (ma20_price, avg_volume_5d)
+    """
+    secid = _get_secid(code)
+    params = {
+        "secid": secid,
+        "fields1": "f1,f2,f3,f4,f5,f6",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57",
+        "klt": "101",       # 日K线
+        "fqt": "1",         # 前复权
+        "end": "20500101",
+        "lmt": "25",        # 取25条确保有20个有效值
+    }
+    data = _safe_get(KLINE_URL, params)
+    if not data or "data" not in data or not data["data"]:
+        return 0.0, 0.0
+
+    klines = data["data"].get("klines", [])
+    if not klines or len(klines) < 20:
+        return 0.0, 0.0
+
+    closes = []
+    volumes = []
+    for k in klines:
+        parts = k.split(",")
+        if len(parts) >= 6:
+            try:
+                closes.append(float(parts[2]))   # f53=收盘价
+                volumes.append(float(parts[5]))  # f56=成交量
+            except ValueError:
+                continue
+
+    if len(closes) < 20:
+        return 0.0, 0.0
+
+    ma20 = sum(closes[-20:]) / 20
+    avg_vol = sum(volumes[-5:]) / 5 if len(volumes) >= 5 else 0
+
+    return round(ma20, 2), round(avg_vol, 0)
+
 
 SINA_QUOTE_URL = "http://hq.sinajs.cn/list="
 

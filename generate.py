@@ -90,30 +90,47 @@ def _build_after_html(limit_ups: list[dict], sectors: list[dict]) -> str:
 
 
 def _build_pre_html(auctions: list[dict]) -> str:
-    """构建竞价标签页HTML"""
-    boom = [a for a in auctions if a['is_volume_boom']]
-    no_boom = [a for a in auctions if not a['is_volume_boom']]
-    high_open = [a for a in auctions if a['auction_change_pct'] >= 5]
+    """构建竞价标签页HTML — MA20过滤 + 高开排序"""
+    # MA20过滤: unmatched_volume 字段复用于存储 MA20 值
+    ma20_pass = [a for a in auctions
+                 if a.get('unmatched_volume', 0) > 0
+                 and a['match_price'] > a['unmatched_volume']]
+    ma20_fail = len(auctions) - len(ma20_pass)
+
+    # 按高开降序排列
+    ma20_pass.sort(key=lambda a: a['auction_change_pct'], reverse=True)
+
+    boom = [a for a in ma20_pass if a['is_volume_boom']]
+    no_boom = [a for a in ma20_pass if not a['is_volume_boom']]
+    high_open = [a for a in ma20_pass if a['auction_change_pct'] >= 5]
 
     html = """
     <div class="tab-content" id="tab-pre">
       <div class="kpi-row">
         <div class="kpi-card boom">
           <div class="kpi-value">%d</div>
-          <div class="kpi-label">竞价爆量</div>
+          <div class="kpi-label">竞价爆量(>5倍)</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-value">%d</div>
           <div class="kpi-label">高开5%%+</div>
         </div>
+        <div class="kpi-card">
+          <div class="kpi-value">%d</div>
+          <div class="kpi-label">MA20上方</div>
+        </div>
       </div>
-    """ % (len(boom), len(high_open))
+    """ % (len(boom), len(high_open), len(ma20_pass))
 
-    # 爆量列表
+    if ma20_fail > 0:
+        html += f'<div class="note">MA20下方已过滤: {ma20_fail}只</div>'
+
+    # 爆量列表 (高开排序)
     if boom:
-        html += '<div class="section-title">竞价爆量 (按成交额降序)</div>'
+        html += '<div class="section-title">竞价爆量 (高开降序 | >5倍昨日竞价)</div>'
         for i, a in enumerate(boom, 1):
             tags = (a.get('tags') or '').replace(',', ', ')
+            ma20_val = a.get('unmatched_volume', 0)
             html += f"""
             <div class="auction-card boom-card">
               <div class="ac-rank">#{i}</div>
@@ -124,37 +141,38 @@ def _build_pre_html(auctions: list[dict]) -> str:
                   <span class="ac-badge boom-badge">爆量</span>
                 </div>
                 <div class="ac-data-row">
-                  <span>竞价 {_fmt_pct(a['auction_change_pct'])}</span>
+                  <span>高开 {_fmt_pct(a['auction_change_pct'])}</span>
                   <span>{_fmt_amount(a['auction_amount'])}</span>
                   <span>换{a.get('auction_turnover',0):.0f}手</span>
                 </div>
                 <div class="ac-yesterday">
-                  昨日: 换{a.get('turnover_rate',0):.1f}% | 市值{a.get('float_market_val',0):.1f}亿
+                  昨换{a.get('turnover_rate',0):.1f}% | 市值{a.get('float_market_val',0):.1f}亿 | MA20={ma20_val:.1f}
                 </div>
                 <div class="ac-tags">{tags}</div>
               </div>
             </div>
             """
     else:
-        html += '<div class="empty-state">今日暂无爆量票</div>'
+        html += '<div class="empty-state">今日暂无符合条件的爆量票</div>'
 
     # 未爆量折叠
     if no_boom:
         html += f"""
         <details class="sector-card">
-          <summary>未爆量 ({len(no_boom)}只)</summary>
+          <summary>MA20上方未爆量 ({len(no_boom)}只)</summary>
           <div class="table-wrap"><table><thead><tr>
-            <th>代码</th><th>名称</th><th>竞价涨幅</th><th>竞价成交额</th><th>换手</th>
+            <th>代码</th><th>名称</th><th>高开</th><th>竞价额</th><th>MA20</th>
           </tr></thead><tbody>
         """
         for a in no_boom:
+            ma20_val = a.get('unmatched_volume', 0)
             html += f"""
             <tr>
               <td>{a['stock_code']}</td>
               <td class="td-name">{a['stock_name']}</td>
               <td class="td-red">{_fmt_pct(a['auction_change_pct'])}</td>
               <td>{_fmt_amount(a['auction_amount'])}</td>
-              <td>{a.get('auction_turnover',0):.0f}手</td>
+              <td>{ma20_val:.1f}</td>
             </tr>
             """
         html += '</tbody></table></div></details>'
@@ -285,6 +303,12 @@ tr:last-child td {{ border-bottom: none; }}
 }}
 .ac-yesterday {{ font-size: 12px; color: #999; }}
 .ac-tags {{ font-size: 11px; color: #718096; margin-top: 4px; line-height: 1.4; }}
+
+/* 提示信息 */
+.note {{
+  text-align: center; padding: 8px; font-size: 12px;
+  color: #718096; background: #f7fafc; border-radius: 8px; margin-bottom: 8px;
+}}
 
 /* 空状态 */
 .empty-state {{
