@@ -301,6 +301,12 @@ def fetch_auction_quotes(stock_codes: list[str]) -> list[dict]:
                 volume = float(fields[8]) if fields[8] else 0    # 成交量(股)
                 amount_raw = float(fields[9]) if fields[9] else 0  # 成交额(元)
 
+                # 买卖盘: [10]=买一量(手), [20]=卖一量(手)
+                buy1_vol = float(fields[10]) if len(fields) > 10 and fields[10] else 0
+                sell1_vol = float(fields[20]) if len(fields) > 20 and fields[20] else 0
+                # 净额(万元) = (买一量 - 卖一量) * 开盘价 / 100
+                net_flow = (buy1_vol - sell1_vol) * open_price / 100
+
                 # 计算涨跌幅: (开盘价 - 昨收) / 昨收
                 if close_prev > 0:
                     change_pct = (open_price - close_prev) / close_prev * 100
@@ -317,6 +323,7 @@ def fetch_auction_quotes(stock_codes: list[str]) -> list[dict]:
                     "auction_amount": amount_raw / 1e4,  # 元 → 万元
                     "auction_turnover": volume / 100,    # 股 → 手
                     "current_price": current,
+                    "net_flow": round(net_flow, 2),      # 竞价净额(万元)
                 })
             except (ValueError, IndexError) as e:
                 continue

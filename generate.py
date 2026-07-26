@@ -144,6 +144,7 @@ def _build_pre_html(auctions: list[dict]) -> str:
                   <span>高开 {_fmt_pct(a['auction_change_pct'])}</span>
                   <span>{_fmt_amount(a['auction_amount'])}</span>
                   <span>{a.get('auction_turnover',0):.1f}倍</span>
+                  <span class="net-{'pos' if a.get('net_flow',0) >= 0 else 'neg'}">{_fmt_amount(a.get('net_flow',0))}</span>
                 </div>
                 <div class="ac-yesterday">
                   昨换{a.get('turnover_rate',0):.1f}% | 市值{a.get('float_market_val',0):.1f}亿 | MA20={ma20_val:.1f}
@@ -303,6 +304,8 @@ tr:last-child td {{ border-bottom: none; }}
 }}
 .ac-yesterday {{ font-size: 12px; color: #999; }}
 .ac-tags {{ font-size: 11px; color: #718096; margin-top: 4px; line-height: 1.4; }}
+.net-pos {{ color: #e53e3e; }}
+.net-neg {{ color: #38a169; }}
 
 /* 提示信息 */
 .note {{

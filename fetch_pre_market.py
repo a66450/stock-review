@@ -109,6 +109,7 @@ def main():
             'unmatched_volume': ma20 if ma20 > 0 else 0,   # 复用于MA20
             'match_price': q.get('match_price', 0),
             'is_volume_boom': is_boom,
+            'net_flow': q.get('net_flow', 0),             # 竞价净额(万元)
         })
 
     # 4. 写入

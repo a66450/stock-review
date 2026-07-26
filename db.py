@@ -50,6 +50,7 @@ def init_db():
             unmatched_volume REAL DEFAULT 0,
             match_price REAL DEFAULT 0,
             is_volume_boom INTEGER DEFAULT 0,
+            net_flow REAL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             UNIQUE(trade_date, stock_code)
         );
@@ -116,13 +117,13 @@ def insert_auction(conn: sqlite3.Connection, rows: list[dict]) -> int:
             cur = conn.execute("""
                 INSERT OR IGNORE INTO auction_data
                 (trade_date, stock_code, auction_change_pct, auction_amount,
-                 auction_turnover, unmatched_volume, match_price, is_volume_boom)
-                VALUES (?,?,?,?,?,?,?,?)
+                 auction_turnover, unmatched_volume, match_price, is_volume_boom, net_flow)
+                VALUES (?,?,?,?,?,?,?,?,?)
             """, (
                 r['trade_date'], r['stock_code'], r['auction_change_pct'],
                 r['auction_amount'], r['auction_turnover'],
                 r.get('unmatched_volume', 0), r.get('match_price', 0),
-                r['is_volume_boom']
+                r['is_volume_boom'], r.get('net_flow', 0)
             ))
             if cur.rowcount > 0:
                 count += 1
