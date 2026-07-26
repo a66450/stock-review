@@ -107,20 +107,21 @@ def _build_pre_html(auctions: list[dict]) -> str:
     html = """
     <div class="tab-content" id="tab-pre">
       <div class="kpi-row">
-        <div class="kpi-card boom" onclick="filterAuction('boom')">
+        <div class="kpi-card boom">
           <div class="kpi-value">%d</div>
           <div class="kpi-label">竞价爆量(>5倍)</div>
         </div>
-        <div class="kpi-card" onclick="filterAuction('high')">
-          <div class="kpi-value">%d</div>
-          <div class="kpi-label">高开5%%+</div>
-        </div>
-        <div class="kpi-card" onclick="filterAuction('all')">
+        <div class="kpi-card">
           <div class="kpi-value">%d</div>
           <div class="kpi-label">MA20上方</div>
         </div>
+        <div class="kpi-card toggle off" id="btn-high" onclick="toggleHigh()">
+          <div class="kpi-value">%d</div>
+          <div class="kpi-label">高开5%%+</div>
+        </div>
       </div>
-    """ % (len(boom), len(high_open), len(ma20_pass))
+    """ % (len(boom), len(ma20_pass), len(high_open))
+
 
     if ma20_fail > 0:
         html += f'<div class="note">MA20下方已过滤: {ma20_fail}只</div>'
@@ -132,7 +133,7 @@ def _build_pre_html(auctions: list[dict]) -> str:
             tags = (a.get('tags') or '').replace(',', ', ')
             ma20_val = a.get('unmatched_volume', 0)
             html += f"""
-            <div class="auction-card boom-card" data-boom="1" data-high="{'1' if a['auction_change_pct'] >= 5 else '0'}">
+            <div class="auction-card boom-card" data-high="{'1' if a['auction_change_pct'] >= 5 else '0'}">
               <div class="ac-rank">#{i}</div>
               <div class="ac-body">
                 <div class="ac-header">
@@ -156,29 +157,6 @@ def _build_pre_html(auctions: list[dict]) -> str:
     else:
         html += '<div class="empty-state">今日暂无符合条件的爆量票</div>'
 
-    # 未爆量折叠
-    if no_boom:
-        html += f"""
-        <details class="sector-card">
-          <summary>MA20上方未爆量 ({len(no_boom)}只)</summary>
-          <div class="table-wrap"><table><thead><tr>
-            <th>代码</th><th>名称</th><th>高开</th><th>竞价额</th><th>倍数</th>
-          </tr></thead><tbody>
-        """
-        for a in no_boom:
-            ma20_val = a.get('unmatched_volume', 0)
-            html += f"""
-            <tr>
-              <td>{a['stock_code']}</td>
-              <td class="td-name">{a['stock_name']}</td>
-              <td class="td-red">{_fmt_pct(a['auction_change_pct'])}</td>
-              <td>{_fmt_amount(a['auction_amount'])}</td>
-              <td>{a.get('auction_turnover',0):.1f}倍</td>
-            </tr>
-            """
-        html += '</tbody></table></div></details>'
-
-    html += '</div>'
     return html
 
 
@@ -234,9 +212,7 @@ body {{
 .kpi-card {{
   flex: 1; background: #fff; border-radius: 12px;
   padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.08);
-  cursor: pointer; transition: all .15s; user-select: none;
 }}
-.kpi-card:active {{ transform: scale(0.96); }}
 .kpi-card.boom {{
   background: linear-gradient(135deg, #fff5f5, #fff);
   border: 1px solid #feb2b2;
@@ -308,6 +284,10 @@ tr:last-child td {{ border-bottom: none; }}
 .ac-tags {{ font-size: 11px; color: #718096; margin-top: 4px; line-height: 1.4; }}
 .net-pos {{ color: #e53e3e; }}
 .net-neg {{ color: #38a169; }}
+.kpi-card.toggle {{ cursor: pointer; user-select: none; transition: all .15s; }}
+.kpi-card.toggle:active {{ transform: scale(0.96); }}
+.kpi-card.toggle.on {{ border: 2px solid #e53e3e; background: #fff5f5; }}
+.kpi-card.toggle.off {{ opacity: 0.6; }}
 
 /* 提示信息 */
 .note {{
@@ -350,17 +330,17 @@ tr:last-child td {{ border-bottom: none; }}
 </div>
 
 <script>
-function filterAuction(type) {
+function toggleHigh() {{
+  var btn = document.getElementById('btn-high');
+  var on = btn.classList.contains('off');
+  btn.classList.toggle('on', on);
+  btn.classList.toggle('off', !on);
   var cards = document.querySelectorAll('.auction-card');
-  cards.forEach(function(c) {
-    if (type === 'all') { c.style.display = 'flex'; return; }
-    var match = type === 'boom' ? c.dataset.boom === '1' : c.dataset.high === '1';
-    c.style.display = match ? 'flex' : 'none';
-  });
-  // 高亮选中KPI
-  document.querySelectorAll('.kpi-card').forEach(function(k) { k.style.opacity = '0.6'; });
-  event.currentTarget.style.opacity = '1';
-}
+  cards.forEach(function(c) {{
+    if (on) {{ c.style.display = c.dataset.high === '1' ? 'flex' : 'none'; }}
+    else {{ c.style.display = 'flex'; }}
+  }});
+}}
 </script>
 </body>
 </html>"""
