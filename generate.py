@@ -107,15 +107,15 @@ def _build_pre_html(auctions: list[dict]) -> str:
     html = """
     <div class="tab-content" id="tab-pre">
       <div class="kpi-row">
-        <div class="kpi-card boom">
+        <div class="kpi-card boom" onclick="filterAuction('boom')">
           <div class="kpi-value">%d</div>
           <div class="kpi-label">竞价爆量(>5倍)</div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card" onclick="filterAuction('high')">
           <div class="kpi-value">%d</div>
           <div class="kpi-label">高开5%%+</div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card" onclick="filterAuction('all')">
           <div class="kpi-value">%d</div>
           <div class="kpi-label">MA20上方</div>
         </div>
@@ -132,7 +132,7 @@ def _build_pre_html(auctions: list[dict]) -> str:
             tags = (a.get('tags') or '').replace(',', ', ')
             ma20_val = a.get('unmatched_volume', 0)
             html += f"""
-            <div class="auction-card boom-card">
+            <div class="auction-card boom-card" data-boom="1" data-high="{'1' if a['auction_change_pct'] >= 5 else '0'}">
               <div class="ac-rank">#{i}</div>
               <div class="ac-body">
                 <div class="ac-header">
@@ -234,7 +234,9 @@ body {{
 .kpi-card {{
   flex: 1; background: #fff; border-radius: 12px;
   padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  cursor: pointer; transition: all .15s; user-select: none;
 }}
+.kpi-card:active {{ transform: scale(0.96); }}
 .kpi-card.boom {{
   background: linear-gradient(135deg, #fff5f5, #fff);
   border: 1px solid #feb2b2;
@@ -347,6 +349,19 @@ tr:last-child td {{ border-bottom: none; }}
 {_build_pre_html(auctions)}
 </div>
 
+<script>
+function filterAuction(type) {
+  var cards = document.querySelectorAll('.auction-card');
+  cards.forEach(function(c) {
+    if (type === 'all') { c.style.display = 'flex'; return; }
+    var match = type === 'boom' ? c.dataset.boom === '1' : c.dataset.high === '1';
+    c.style.display = match ? 'flex' : 'none';
+  });
+  // 高亮选中KPI
+  document.querySelectorAll('.kpi-card').forEach(function(k) { k.style.opacity = '0.6'; });
+  event.currentTarget.style.opacity = '1';
+}
+</script>
 </body>
 </html>"""
 
