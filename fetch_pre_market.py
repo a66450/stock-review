@@ -90,7 +90,9 @@ def main():
         ma20_ok = ma20 > 0 and match_price > ma20
 
         auction_amount = q.get('auction_amount', 0)
-        is_boom = judge_volume_boom(conn, code, auction_amount) if ma20_ok else 0
+        yesterday_amt = get_last_auction_amount(conn, code)
+        boom_ratio = round(auction_amount / yesterday_amt, 1) if yesterday_amt > 0 else 0
+        is_boom = (1 if boom_ratio >= 5 else 0) if ma20_ok else 0
         if is_boom:
             boom_count += 1
         if ma20_ok:
@@ -103,8 +105,8 @@ def main():
             'stock_code': code,
             'auction_change_pct': q.get('auction_change_pct', 0),
             'auction_amount': auction_amount,
-            'auction_turnover': q.get('auction_turnover', 0),
-            'unmatched_volume': ma20 if ma20 > 0 else 0,   # 借用字段存MA20
+            'auction_turnover': boom_ratio,               # 复用于爆量倍数
+            'unmatched_volume': ma20 if ma20 > 0 else 0,   # 复用于MA20
             'match_price': q.get('match_price', 0),
             'is_volume_boom': is_boom,
         })

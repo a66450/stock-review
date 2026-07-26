@@ -127,7 +127,7 @@ def _build_pre_html(auctions: list[dict]) -> str:
 
     # 爆量列表 (高开排序)
     if boom:
-        html += '<div class="section-title">竞价爆量 (高开降序 | >5倍昨日竞价)</div>'
+        html += '<div class="section-title">竞价爆量 (高开降序)</div>'
         for i, a in enumerate(boom, 1):
             tags = (a.get('tags') or '').replace(',', ', ')
             ma20_val = a.get('unmatched_volume', 0)
@@ -143,7 +143,7 @@ def _build_pre_html(auctions: list[dict]) -> str:
                 <div class="ac-data-row">
                   <span>高开 {_fmt_pct(a['auction_change_pct'])}</span>
                   <span>{_fmt_amount(a['auction_amount'])}</span>
-                  <span>换{a.get('auction_turnover',0):.0f}手</span>
+                  <span>{a.get('auction_turnover',0):.1f}倍</span>
                 </div>
                 <div class="ac-yesterday">
                   昨换{a.get('turnover_rate',0):.1f}% | 市值{a.get('float_market_val',0):.1f}亿 | MA20={ma20_val:.1f}
@@ -161,7 +161,7 @@ def _build_pre_html(auctions: list[dict]) -> str:
         <details class="sector-card">
           <summary>MA20上方未爆量 ({len(no_boom)}只)</summary>
           <div class="table-wrap"><table><thead><tr>
-            <th>代码</th><th>名称</th><th>高开</th><th>竞价额</th><th>MA20</th>
+            <th>代码</th><th>名称</th><th>高开</th><th>竞价额</th><th>倍数</th>
           </tr></thead><tbody>
         """
         for a in no_boom:
@@ -172,7 +172,7 @@ def _build_pre_html(auctions: list[dict]) -> str:
               <td class="td-name">{a['stock_name']}</td>
               <td class="td-red">{_fmt_pct(a['auction_change_pct'])}</td>
               <td>{_fmt_amount(a['auction_amount'])}</td>
-              <td>{ma20_val:.1f}</td>
+              <td>{a.get('auction_turnover',0):.1f}倍</td>
             </tr>
             """
         html += '</tbody></table></div></details>'
