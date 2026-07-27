@@ -122,19 +122,34 @@ def _build_after_html(limit_ups: list[dict], sectors: list[dict]) -> str:
 
 
 def _build_pre_html(auctions: list[dict]) -> str:
-    """构建竞价标签页HTML — MA20过滤 + 高开排序"""
-    # MA20过滤: unmatched_volume 字段复用于存储 MA20 值
-    ma20_pass = [a for a in auctions
-                 if a.get('unmatched_volume', 0) > 0
-                 and a['match_price'] > a['unmatched_volume']]
-    ma20_fail = len(auctions) - len(ma20_pass)
+    """构建竞价标签页HTML — 爆量优先, MA20仅标记不硬过滤"""
+    # 所有有爆量标记的票 (is_volume_boom > 0)
+    boom_all = [a for a in auctions if a['is_volume_boom']]
+    # 非爆量票 (有竞价数据但没爆量)
+    no_boom_all = [a for a in auctions if not a['is_volume_boom']]
 
-    # 按高开降序排列
-    ma20_pass.sort(key=lambda a: a['auction_change_pct'], reverse=True)
+    # 爆量票按高开降序
+    boom_all.sort(key=lambda a: a['auction_change_pct'], reverse=True)
+    no_boom_all.sort(key=lambda a: a['auction_change_pct'], reverse=True)
 
-    boom = [a for a in ma20_pass if a['is_volume_boom']]
-    no_boom = [a for a in ma20_pass if not a['is_volume_boom']]
-    high_open = [a for a in ma20_pass if a['auction_change_pct'] >= 5]
+    # 统计
+    total = len(auctions)
+    boom_cnt = len(boom_all)
+    above_ma20 = sum(1 for a in auctions
+                     if a.get('unmatched_volume', 0) > 0
+                     and a['match_price'] > a['unmatched_volume'])
+    high5_cnt = sum(1 for a in auctions if a['auction_change_pct'] >= 5)
+    below_ma20 = total - above_ma20
+
+    # MA20信息字段: unmatched_volume 存的是 MA20 值
+    def _ma20_ok(a) -> bool:
+        mv = a.get('unmatched_volume', 0)
+        return mv > 0 and a['match_price'] > mv
+
+    def _ma20_badge(a) -> str:
+        if _ma20_ok(a):
+            return '<span class="badge badge-ma20">MA20↑</span>'
+        return '<span class="badge badge-ma20-down">MA20↓</span>'
 
     html = """
     <div class="tab-content" id="tab-pre">
@@ -145,23 +160,22 @@ def _build_pre_html(auctions: list[dict]) -> str:
         </div>
         <div class="kpi-card">
           <div class="kpi-value">%d</div>
-          <div class="kpi-label">MA20上方</div>
+          <div class="kpi-label">首板总数</div>
         </div>
         <div class="kpi-card toggle off" id="btn-high" onclick="toggleHigh()">
           <div class="kpi-value">%d</div>
           <div class="kpi-label">高开5%%+</div>
         </div>
       </div>
-    """ % (len(boom), len(ma20_pass), len(high_open))
+    """ % (boom_cnt, total, high5_cnt)
 
+    if below_ma20 > 0:
+        html += f'<div class="note">MA20下方: {below_ma20}只 (标记为MA20↓, 未过滤)</div>'
 
-    if ma20_fail > 0:
-        html += f'<div class="note">MA20下方已过滤: {ma20_fail}只</div>'
-
-    # 爆量列表 (高开排序)
-    if boom:
+    # ======== 爆量票列表 ========
+    if boom_all:
         html += '<div class="section-title">竞价爆量 (高开降序)</div>'
-        for i, a in enumerate(boom, 1):
+        for i, a in enumerate(boom_all, 1):
             tags = (a.get('tags') or '').replace(',', ', ')
             ma20_val = a.get('unmatched_volume', 0)
             html += f"""
@@ -171,12 +185,12 @@ def _build_pre_html(auctions: list[dict]) -> str:
                 <div class="ac-header">
                   <span class="ac-name">{a['stock_name']}</span>
                   <span class="ac-code">{a['stock_code']}</span>
-                  <span class="ac-badge boom-badge">爆量</span>
+                  {_ma20_badge(a)}
+                  <span class="ac-badge boom-badge">爆量{a.get('auction_turnover',0):.1f}倍</span>
                 </div>
                 <div class="ac-data-row">
                   <span>高开 {_fmt_pct(a['auction_change_pct'])}</span>
                   <span>{_fmt_amount(a['auction_amount'])}</span>
-                  <span>{a.get('auction_turnover',0):.1f}倍</span>
                   <span class="net-{'pos' if a.get('net_flow',0) >= 0 else 'neg'}">{_fmt_amount(a.get('net_flow',0))}</span>
                 </div>
                 <div class="ac-yesterday">
@@ -186,8 +200,36 @@ def _build_pre_html(auctions: list[dict]) -> str:
               </div>
             </div>
             """
-    else:
-        html += '<div class="empty-state">今日暂无符合条件的爆量票</div>'
+
+    # ======== 非爆量票列表 ========
+    if no_boom_all:
+        html += f'<div class="section-title">其他首板 (未爆量, {len(no_boom_all)}只)</div>'
+        for i, a in enumerate(no_boom_all, 1):
+            tags = (a.get('tags') or '').replace(',', ', ')
+            ma20_val = a.get('unmatched_volume', 0)
+            ratio = a.get('auction_turnover', 0)
+            html += f"""
+            <div class="auction-card" data-high="{'1' if a['auction_change_pct'] >= 5 else '0'}">
+              <div class="ac-rank" style="color:#999">#{i}</div>
+              <div class="ac-body">
+                <div class="ac-header">
+                  <span class="ac-name">{a['stock_name']}</span>
+                  <span class="ac-code">{a['stock_code']}</span>
+                  {_ma20_badge(a)}
+                  {f'<span class="badge badge-ratio">{ratio:.1f}倍</span>' if ratio > 0 else ''}
+                </div>
+                <div class="ac-data-row" style="color:#333">
+                  <span>高开 {_fmt_pct(a['auction_change_pct'])}</span>
+                  <span>{_fmt_amount(a['auction_amount'])}</span>
+                  <span class="net-{'pos' if a.get('net_flow',0) >= 0 else 'neg'}">{_fmt_amount(a.get('net_flow',0))}</span>
+                </div>
+                <div class="ac-yesterday">
+                  昨换{a.get('turnover_rate',0):.1f}% | 市值{a.get('float_market_val',0):.1f}亿 | MA20={ma20_val:.1f}
+                </div>
+                <div class="ac-tags">{tags}</div>
+              </div>
+            </div>
+            """
 
     return html
 
@@ -330,6 +372,12 @@ tr:last-child td {{ border-bottom: none; }}
   font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 600;
 }}
 .boom-badge {{ background: #e53e3e; color: #fff; }}
+.badge {{
+  font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600;
+}}
+.badge-ma20 {{ background: #c6f6d5; color: #276749; }}
+.badge-ma20-down {{ background: #fed7d7; color: #c53030; }}
+.badge-ratio {{ background: #fefcbf; color: #975a16; }}
 .ac-data-row {{
   display: flex; gap: 16px; font-size: 13px; color: #e53e3e; font-weight: 600;
   margin-bottom: 4px;
