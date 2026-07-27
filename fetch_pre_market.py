@@ -53,6 +53,16 @@ def main():
     print(f"[{now:%Y-%m-%d %H:%M:%S}] 盘前脚本启动")
     print(f"  交易日: {trade_date}")
 
+    # 如果还没到9:25, 等到9:25再抓 (保证竞价数据完整)
+    target_hour, target_min = 9, 25
+    if now.hour < target_hour or (now.hour == target_hour and now.minute < target_min):
+        wait_sec = ((target_hour - now.hour) * 3600 + (target_min - now.minute) * 60
+                    - now.second)
+        print(f"  当前{now.hour}:{now.minute:02d}, 距9:25还有{wait_sec}秒, 等待中...")
+        time.sleep(wait_sec)
+        now = beijing_now()
+        print(f"  恢复运行: {now:%H:%M:%S}")
+
     init_db()
     conn = get_conn()
 
