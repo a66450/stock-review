@@ -25,6 +25,10 @@ def _fmt_pct(val: float) -> str:
 
 def _build_after_html(limit_ups: list[dict], sectors: list[dict]) -> str:
     """构建盘后标签页HTML"""
+    # 分离行业板块(sector)和概念板块(concept)
+    concept_secs = [s for s in sectors if s.get('tag_type') == 'concept']
+    sector_secs = [s for s in sectors if s.get('tag_type') == 'sector']
+
     html = """
     <div class="tab-content active" id="tab-after">
       <div class="kpi-row">
@@ -34,20 +38,20 @@ def _build_after_html(limit_ups: list[dict], sectors: list[dict]) -> str:
         </div>
         <div class="kpi-card">
           <div class="kpi-value">%d</div>
-          <div class="kpi-label">板块效应</div>
+          <div class="kpi-label">概念板块</div>
         </div>
       </div>
-    """ % (len(limit_ups), len(sectors))
+    """ % (len(limit_ups), len(concept_secs))
 
-    # 板块效应区域
-    if sectors:
-        html += '<div class="section-title">板块效应 (&ge;3只)</div>'
-        for sec in sectors[:15]:  # 最多展示15个板块
+    # 概念板块区域 (算力/MLCC/医药等)
+    if concept_secs:
+        html += '<div class="section-title">概念题材 (&ge;3只)</div>'
+        for sec in concept_secs[:20]:
             names = sec['names'].split(',')
             codes = sec['codes'].split(',')
             html += f"""
-            <details class="sector-card">
-              <summary>{sec['tag_name']} ({sec['cnt']}只)</summary>
+            <details class="sector-card concept-card">
+              <summary><span class="tag-badge">概念</span> {sec['tag_name']} ({sec['cnt']}只)</summary>
               <div class="stock-list">
             """
             for code, name in zip(codes, names):
@@ -66,7 +70,35 @@ def _build_after_html(limit_ups: list[dict], sectors: list[dict]) -> str:
             </details>
             """
     else:
-        html += '<div class="empty-state">暂无板块效应数据</div>'
+        html += '<div class="empty-state">暂无概念板块数据</div>'
+
+    # 行业板块区域 (医药生物/电子等, 折叠收起)
+    if sector_secs:
+        html += '<details class="sector-group"><summary>行业板块 ({})</summary>'.format(len(sector_secs))
+        for sec in sector_secs[:15]:
+            names = sec['names'].split(',')
+            codes = sec['codes'].split(',')
+            html += f"""
+            <div class="sector-card">
+              <div class="sec-title">{sec['tag_name']} ({sec['cnt']}只)</div>
+              <div class="stock-list">
+            """
+            for code, name in zip(codes, names):
+                stock = next((s for s in limit_ups if s['stock_code'] == code), None)
+                if stock:
+                    html += f"""
+                <div class="stock-item">
+                  <span class="stock-name">{name}</span>
+                  <span class="stock-code">{code}</span>
+                  <span class="stock-data">换{stock['turnover_rate']:.1f}%</span>
+                  <span class="stock-data">市值{stock['float_market_val']:.1f}亿</span>
+                </div>
+                    """
+            html += """
+              </div>
+            </div>
+            """
+        html += '</details>'
 
     # 全部首板表格
     html += '<div class="section-title">全部首板 (按涨停时间)</div>'
@@ -228,12 +260,34 @@ body {{
   background: #fff; border-radius: 10px; margin-bottom: 8px;
   box-shadow: 0 1px 3px rgba(0,0,0,.06); overflow: hidden;
 }}
+.sector-card {{
+  background: #fff; border-radius: 10px; margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06); overflow: hidden;
+}}
 .sector-card summary {{
   padding: 12px 14px; font-weight: 600; font-size: 14px;
   cursor: pointer; color: #2d3748; list-style: none;
 }}
 .sector-card summary::-webkit-details-marker {{ display: none; }}
 .sector-card[open] summary {{ border-bottom: 1px solid #f0f0f0; }}
+.concept-card summary {{ background: #fff5f5; }}
+.concept-card[open] summary {{ border-bottom: 1px solid #fed7d7; }}
+.tag-badge {{
+  font-size: 10px; background: #e53e3e; color: #fff;
+  padding: 1px 5px; border-radius: 3px; margin-right: 4px;
+}}
+.sec-title {{
+  padding: 10px 14px; font-weight: 600; font-size: 13px; color: #4a5568;
+  border-bottom: 1px solid #f0f0f0;
+}}
+.sector-group {{
+  margin-top: 12px; background: #fff; border-radius: 10px;
+  overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}}
+.sector-group > summary {{
+  padding: 10px 14px; font-weight: 600; font-size: 13px; color: #718096;
+  cursor: pointer; list-style: none;
+}}
 
 .stock-list {{ padding: 8px 14px 12px; }}
 .stock-item {{

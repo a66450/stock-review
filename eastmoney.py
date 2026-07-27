@@ -146,11 +146,16 @@ def _fetch_one_stock_sectors(code: str) -> tuple[str, list[dict]]:
         return code, []
 
     tags = []
-    # ssbk = 所属板块 (sector boards)
+    # ssbk = 行业板块 (sector boards, 医药生物/电子等)
     for item in data.get("ssbk", []):
         name = item.get("BOARD_NAME", "")
         if name:
             tags.append({"stock_code": code, "tag_name": name, "tag_type": "sector"})
+    # gnbk = 概念板块 (concept boards, 算力/MLCC/芯片等)
+    for item in data.get("gnbk", []):
+        name = item.get("BOARD_NAME", "")
+        if name:
+            tags.append({"stock_code": code, "tag_name": name, "tag_type": "concept"})
 
     return code, tags
 
