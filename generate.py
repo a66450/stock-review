@@ -178,6 +178,7 @@ def _build_pre_html(auctions: list[dict]) -> str:
         for i, a in enumerate(boom_all, 1):
             tags = (a.get('tags') or '').replace(',', ', ')
             ma20_val = a.get('unmatched_volume', 0)
+            ratio = a.get('auction_turnover', 0)
             html += f"""
             <div class="auction-card boom-card" data-high="{'1' if a['auction_change_pct'] >= 5 else '0'}">
               <div class="ac-rank">#{i}</div>
@@ -186,15 +187,14 @@ def _build_pre_html(auctions: list[dict]) -> str:
                   <span class="ac-name">{a['stock_name']}</span>
                   <span class="ac-code">{a['stock_code']}</span>
                   {_ma20_badge(a)}
-                  <span class="ac-badge boom-badge">爆量{a.get('auction_turnover',0):.1f}倍</span>
                 </div>
                 <div class="ac-data-row">
+                  <span class="data-ratio">{_fmt_amount(a['auction_amount'])} / {ratio:.1f}倍</span>
                   <span>高开 {_fmt_pct(a['auction_change_pct'])}</span>
-                  <span>{_fmt_amount(a['auction_amount'])}</span>
-                  <span class="net-{'pos' if a.get('net_flow',0) >= 0 else 'neg'}">{_fmt_amount(a.get('net_flow',0))}</span>
                 </div>
                 <div class="ac-yesterday">
                   昨换{a.get('turnover_rate',0):.1f}% | 市值{a.get('float_market_val',0):.1f}亿 | MA20={ma20_val:.1f}
+                  {f' | 净额{_fmt_amount(a.get("net_flow",0))}' if a.get('net_flow',0) else ''}
                 </div>
                 <div class="ac-tags">{tags}</div>
               </div>
@@ -219,12 +219,12 @@ def _build_pre_html(auctions: list[dict]) -> str:
                   {f'<span class="badge badge-ratio">{ratio:.1f}倍</span>' if ratio > 0 else ''}
                 </div>
                 <div class="ac-data-row" style="color:#333">
-                  <span>高开 {_fmt_pct(a['auction_change_pct'])}</span>
                   <span>{_fmt_amount(a['auction_amount'])}</span>
-                  <span class="net-{'pos' if a.get('net_flow',0) >= 0 else 'neg'}">{_fmt_amount(a.get('net_flow',0))}</span>
+                  <span>高开 {_fmt_pct(a['auction_change_pct'])}</span>
                 </div>
                 <div class="ac-yesterday">
                   昨换{a.get('turnover_rate',0):.1f}% | 市值{a.get('float_market_val',0):.1f}亿 | MA20={ma20_val:.1f}
+                  {f' | 净额{_fmt_amount(a.get("net_flow",0))}' if a.get('net_flow',0) else ''}
                 </div>
                 <div class="ac-tags">{tags}</div>
               </div>
@@ -379,9 +379,10 @@ tr:last-child td {{ border-bottom: none; }}
 .badge-ma20-down {{ background: #fed7d7; color: #c53030; }}
 .badge-ratio {{ background: #fefcbf; color: #975a16; }}
 .ac-data-row {{
-  display: flex; gap: 16px; font-size: 13px; color: #e53e3e; font-weight: 600;
-  margin-bottom: 4px;
+  display: flex; gap: 12px; font-size: 14px; font-weight: 700;
+  margin-bottom: 4px; flex-wrap: wrap;
 }}
+.data-ratio {{ color: #e53e3e; font-size: 15px; }}
 .ac-yesterday {{ font-size: 12px; color: #999; }}
 .ac-tags {{ font-size: 11px; color: #718096; margin-top: 4px; line-height: 1.4; }}
 .net-pos {{ color: #e53e3e; }}
